@@ -12,7 +12,9 @@ type NodeHandler struct {
 	OnDig         func(*ClientConn, *mt.ToSrvInteract) bool
 	OnStopDigging func(*ClientConn, *mt.ToSrvInteract) bool
 	OnDug         func(*ClientConn, *mt.ToSrvInteract) bool
-	OnPlace       func(*ClientConn, *mt.ToSrvInteract) bool // TODO IMPLEMENTED
+	OnPlace       func(*ClientConn, *mt.ToSrvInteract) bool
+	OnUse         func(*ClientConn, *mt.ToSrvInteract) bool
+	OnActivate    func(*ClientConn, *mt.ToSrvInteract) bool
 }
 
 var NodeHandlers []*NodeHandler
@@ -29,10 +31,11 @@ func initMapCache() {
 }
 
 func RegisterNodeHandler(handler *NodeHandler) {
+
 	NodeHandlersMu.Lock()
 	defer NodeHandlersMu.Unlock()
 
-	RegisterCacheNode(handler.Node)
+	RegisterNeedNode(handler.Node)
 	NodeHandlers = append(NodeHandlers, handler)
 }
 
@@ -53,7 +56,6 @@ func initNodeHandlerNodeIds() {
 
 func GetMapCache() map[[3]int16]*[4096]mt.Content {
 	initMapCache()
-
 	mapCacheMu.RLock()
 	defer mapCacheMu.RUnlock()
 
@@ -62,7 +64,6 @@ func GetMapCache() map[[3]int16]*[4096]mt.Content {
 
 func IsCached(pos [3]int16) bool {
 	initMapCache()
-
 	mapCacheMu.RLock()
 	defer mapCacheMu.RUnlock()
 
@@ -77,11 +78,11 @@ func IsCached(pos [3]int16) bool {
 func handleNodeInteraction(cc *ClientConn, pointedNode *mt.PointedNode, cmd *mt.ToSrvInteract) bool {
 	NodeHandlersMu.RLock()
 	defer NodeHandlersMu.RUnlock()
-
 	mapCacheMu.RLock()
 	defer mapCacheMu.RUnlock()
 
 	var handled bool
+
 	for _, handler := range NodeHandlers {
 		// check if nodeId is right
 		pos, i := mt.Pos2Blkpos(pointedNode.Under)
@@ -105,6 +106,14 @@ func handleNodeInteraction(cc *ClientConn, pointedNode *mt.PointedNode, cmd *mt.
 				if handler.OnPlace != nil {
 					h = handler.OnPlace(cc, cmd)
 				}
+			case mt.Use:
+				if handler.OnUse != nil {
+					h = handler.OnUse(cc, cmd)
+				}
+			case mt.Activate:
+				if handler.OnActivate != nil {
+					h = handler.OnActivate(cc, cmd)
+				}
 			}
 
 			if h {
@@ -120,8 +129,8 @@ func initPluginNode() {
 	RegisterBlkDataHandler(BlkDataHandler{
 		Handler: func(cc *ClientConn, cmd *mt.ToCltBlkData) bool {
 			initMapCache()
-			initNodeHandlerNodeIds()
 
+			initNodeHandlerNodeIds()
 			mapCacheMu.Lock()
 			defer mapCacheMu.Unlock()
 
@@ -136,6 +145,7 @@ func initPluginNode() {
 				}
 
 				// if it changed
+				// if !interesting && mapCache[cmd.Blkpos][i] != 0 && mapCache[cmd.Blkpos][i] != node {
 				if !interesting {
 					if mapCache[cmd.Blkpos] != nil {
 						if mapCache[cmd.Blkpos][i] != 0 && mapCache[cmd.Blkpos][i] != node {
@@ -145,6 +155,7 @@ func initPluginNode() {
 				}
 
 				if interesting {
+					//cc.Log("<>", "interesting mapBlock")
 					if mapCache[cmd.Blkpos] == nil {
 						mapCache[cmd.Blkpos] = &[4096]mt.Content{}
 					}
