@@ -23,6 +23,10 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 		srv.Send(pkt)
 	}
 
+	if handleCltPacket(cc, &pkt) {
+		return
+	}
+
 	switch cmd := pkt.Cmd.(type) {
 	case *mt.ToSrvNil:
 		return
@@ -481,6 +485,10 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 		return
 	}
 
+	if handleSrvPacket(sc, &pkt) {
+		return
+	}
+
 	switch cmd := pkt.Cmd.(type) {
 	case *mt.ToCltHello:
 		if sc.auth.method != 0 {
@@ -674,7 +682,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			if handleAORm(sc, ao) {
 				continue
 			}
-		
+
 			delete(sc.aos, ao)
 			resp.Remove = append(resp.Remove, ao)
 		}
