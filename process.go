@@ -23,6 +23,10 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 		srv.Send(pkt)
 	}
 
+	if handleCltPacket(cc, &pkt) {
+		return
+	}
+
 	switch cmd := pkt.Cmd.(type) {
 	case *mt.ToSrvNil:
 		return
@@ -478,6 +482,10 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 	clt := sc.client()
 	if clt == nil {
 		sc.Log("<-", "no client")
+		return
+	}
+
+	if handleSrvPacket(sc, &pkt) {
 		return
 	}
 
