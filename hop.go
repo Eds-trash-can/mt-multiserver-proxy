@@ -162,7 +162,7 @@ func (cc *ClientConn) Hop(serverName string) error {
 		return authIface.SetLastSrv(cc.Name(), serverName)
 	}
 
-	handlePlayerHop(cc, source, serverName)
+	handleClientHop(cc, source, serverName)
 
 	return nil
 }

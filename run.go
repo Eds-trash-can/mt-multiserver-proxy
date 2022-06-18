@@ -113,7 +113,7 @@ func runFunc() {
 			var srv, s Server
 			var found bool
 			
-			srvName := handlePlayerJoin(cc)
+			srvName := handleClientJoin(cc)
 			if srvName != "" {
 				s, found = Conf().Servers[srvName]
 			}

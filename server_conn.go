@@ -19,7 +19,7 @@ type ServerConn struct {
 
 	logger *log.Logger
 
-	cstate   clientState
+	cstate   ClientState
 	cstateMu sync.RWMutex
 	name     string
 	initCh   chan struct{}
@@ -51,14 +51,14 @@ func (sc *ServerConn) client() *ClientConn {
 	return sc.clt
 }
 
-func (sc *ServerConn) state() clientState {
+func (sc *ServerConn) state() ClientState {
 	sc.cstateMu.RLock()
 	defer sc.cstateMu.RUnlock()
 
 	return sc.cstate
 }
 
-func (sc *ServerConn) setState(state clientState) {
+func (sc *ServerConn) setState(state ClientState) {
 	sc.cstateMu.Lock()
 	defer sc.cstateMu.Unlock()
 
@@ -89,7 +89,7 @@ func handleSrv(sc *ServerConn) {
 			}
 		}(init)
 
-		for sc.state() == csCreated && sc.client() != nil {
+		for sc.state() == CsCreated && sc.client() != nil {
 			sc.SendCmd(&mt.ToSrvInit{
 				SerializeVer: serializeVer,
 				MinProtoVer:  protoVer,

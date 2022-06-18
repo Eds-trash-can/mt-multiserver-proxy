@@ -35,7 +35,7 @@ type contentConn struct {
 
 	logger *log.Logger
 
-	cstate         clientState
+	cstate         ClientState
 	cstateMu       sync.RWMutex
 	name, userName string
 	doneCh         chan struct{}
@@ -56,14 +56,14 @@ type contentConn struct {
 	remotes []string
 }
 
-func (cc *contentConn) state() clientState {
+func (cc *contentConn) state() ClientState {
 	cc.cstateMu.RLock()
 	defer cc.cstateMu.RUnlock()
 
 	return cc.cstate
 }
 
-func (cc *contentConn) setState(state clientState) {
+func (cc *contentConn) setState(state ClientState) {
 	cc.cstateMu.Lock()
 	defer cc.cstateMu.Unlock()
 
@@ -116,7 +116,7 @@ func handleContent(cc *contentConn) {
 			}
 		}(init)
 
-		for cc.state() == csCreated {
+		for cc.state() == CsCreated {
 			cc.SendCmd(&mt.ToSrvInit{
 				SerializeVer: serializeVer,
 				MinProtoVer:  protoVer,
@@ -135,7 +135,7 @@ func handleContent(cc *contentConn) {
 					cc.log("<->", "timeout")
 				}
 
-				cc.setState(csInit)
+				cc.setState(CsInit)
 				break
 			}
 
@@ -151,7 +151,7 @@ func handleContent(cc *contentConn) {
 				break
 			}
 
-			cc.setState(csActive)
+			cc.setState(CsActive)
 			if cmd.AuthMethods&mt.FirstSRP != 0 {
 				cc.auth.method = mt.FirstSRP
 			} else {

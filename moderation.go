@@ -17,7 +17,7 @@ func (cc *ClientConn) Kick(reason string) {
 	
 		ack, _ := cc.SendCmd(kick)
 
-		handlePlayerLeave(cc ,&Leave{
+		handleClientLeave(cc ,&Leave{
 			Type: Kick,
 			Kick: kick,
 		})
