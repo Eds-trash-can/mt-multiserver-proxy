@@ -13,10 +13,6 @@ type AOHandler struct {
 	OnAORm  func(*ClientConn, mt.AOID) bool
 }
 
-// TODO:
-// var aOCache   map[mt.AOID]*mt.AOProps
-// var aOCacheMu sync.RWMutex
-
 var aOHandlers []*AOHandler
 var aOHandlersMu sync.RWMutex
 
