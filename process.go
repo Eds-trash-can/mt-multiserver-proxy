@@ -27,12 +27,12 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 	case *mt.ToSrvNil:
 		return
 	case *mt.ToSrvInit:
-		if cc.state() > csCreated {
+		if cc.state() > CsCreated {
 			cc.Log("->", "duplicate init")
 			return
 		}
 
-		cc.setState(csInit)
+		cc.setState(CsInit)
 		if cmd.SerializeVer < serializeVer {
 			cc.Log("<-", "invalid serializeVer", cmd.SerializeVer)
 			ack, _ := cc.SendCmd(&mt.ToCltKick{Reason: mt.UnsupportedVer})
@@ -156,7 +156,7 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 
 		return
 	case *mt.ToSrvFirstSRP:
-		if cc.state() == csInit {
+		if cc.state() == CsInit {
 			if cc.auth.method != mt.FirstSRP {
 				cc.Log("->", "unauthorized password change")
 				ack, _ := cc.SendCmd(&mt.ToCltKick{Reason: mt.UnexpectedData})
@@ -209,12 +209,12 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 				SudoAuthMethods: mt.SRP,
 			})
 		} else {
-			if cc.state() < csSudo {
+			if cc.state() < CsSudo {
 				cc.Log("->", "unauthorized sudo action")
 				return
 			}
 
-			cc.setState(csActive)
+			cc.setState(CsActive)
 			if err := authIface.SetPasswd(cc.Name(), cmd.Salt, cmd.Verifier); err != nil {
 				cc.Log("<-", "change password fail")
 				cc.SendChatMsg("Password change failed or unavailable.")
@@ -227,9 +227,9 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 
 		return
 	case *mt.ToSrvSRPBytesA:
-		wantSudo := cc.state() == csActive
+		wantSudo := cc.state() == CsActive
 
-		if cc.state() != csInit && cc.state() != csActive {
+		if cc.state() != CsInit && cc.state() != CsActive {
 			cc.Log("->", "unexpected authentication")
 			return
 		}
@@ -295,9 +295,9 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 
 		return
 	case *mt.ToSrvSRPBytesM:
-		wantSudo := cc.state() == csActive
+		wantSudo := cc.state() == CsActive
 
-		if cc.state() != csInit && cc.state() != csActive {
+		if cc.state() != CsInit && cc.state() != CsActive {
 			cc.Log("->", "unexpected authentication")
 			return
 		}
@@ -328,7 +328,7 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 			}{}
 
 			if wantSudo {
-				cc.setState(csSudo)
+				cc.setState(CsSudo)
 				cc.SendCmd(&mt.ToCltAcceptSudoMode{})
 			} else {
 				cc.SendCmd(&mt.ToCltAcceptAuth{
@@ -428,7 +428,7 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 		cc.versionStr = cmd.Version
 		cc.formspecVer = cmd.Formspec
 
-		cc.setState(csActive)
+		cc.setState(CsActive)
 		close(cc.initCh)
 
 		return
@@ -489,7 +489,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			return
 		}
 
-		sc.setState(csActive)
+		sc.setState(CsActive)
 		if cmd.AuthMethods&mt.FirstSRP != 0 {
 			sc.auth.method = mt.FirstSRP
 		} else {
@@ -601,7 +601,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 		return
 	case *mt.ToCltAcceptSudoMode:
 		sc.Log("<-", "accept sudo")
-		sc.setState(csSudo)
+		sc.setState(CsSudo)
 		return
 	case *mt.ToCltAnnounceMedia:
 		sc.SendCmd(&mt.ToSrvReqMedia{})
@@ -616,7 +616,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 		})
 
 		sc.Log("<->", "handshake completed")
-		sc.setState(csActive)
+		sc.setState(CsActive)
 		close(sc.initCh)
 
 		return
@@ -674,7 +674,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			if handleAORm(sc, ao) {
 				continue
 			}
-		
+
 			delete(sc.aos, ao)
 			resp.Remove = append(resp.Remove, ao)
 		}
@@ -718,6 +718,10 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			if handleAOAdd(sc, ao.ID, &ao) {
 				continue
 			}
+
+			clt.aoReady.Do(func() {
+				handleAOReady(clt)
+			})
 		}
 
 		clt.SendCmd(resp)

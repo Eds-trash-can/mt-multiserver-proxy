@@ -10,13 +10,13 @@ import (
 	"github.com/anon55555/mt/rudp"
 )
 
-type clientState uint8
+type ClientState uint8
 
 const (
-	csCreated clientState = iota
-	csInit
-	csActive
-	csSudo
+	CsCreated ClientState = iota
+	CsInit
+	CsActive
+	CsSudo
 )
 
 // A ClientConn is a connection to a minetest client.
@@ -27,10 +27,11 @@ type ClientConn struct {
 
 	logger *log.Logger
 
-	cstate   clientState
+	cstate   ClientState
 	cstateMu sync.RWMutex
 	name     string
 	initCh   chan struct{}
+	aoReady  sync.Once
 	hopMu    sync.Mutex
 
 	auth struct {
@@ -81,18 +82,24 @@ func (cc *ClientConn) ServerName() string {
 	return ""
 }
 
-func (cc *ClientConn) state() clientState {
+func (cc *ClientConn) state() ClientState {
 	cc.cstateMu.RLock()
 	defer cc.cstateMu.RUnlock()
 
 	return cc.cstate
 }
 
-func (cc *ClientConn) setState(state clientState) {
+func (cc *ClientConn) setState(state ClientState) {
 	cc.cstateMu.Lock()
-	defer cc.cstateMu.Unlock()
 
+	oldState := cc.cstate
 	cc.cstate = state
+
+	cc.cstateMu.Unlock()
+
+	if oldState != state {
+		handleClientStateChange(cc, oldState, state)
+	}
 }
 
 // Init returns a channel that is closed
@@ -113,6 +120,9 @@ func handleClt(cc *ClientConn) {
 				if errors.Is(cc.WhyClosed(), rudp.ErrTimedOut) {
 					cc.Log("<->", "timeout")
 				} else {
+					handleClientLeave(cc, &Leave{
+						Type: Exit,
+					})
 					cc.Log("<->", "disconnect")
 				}
 

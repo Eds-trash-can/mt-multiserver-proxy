@@ -13,10 +13,6 @@ type AOHandler struct {
 	OnAORm  func(*ClientConn, mt.AOID) bool
 }
 
-// TODO:
-// var aOCache   map[mt.AOID]*mt.AOProps
-// var aOCacheMu sync.RWMutex
-
 var aOHandlers []*AOHandler
 var aOHandlersMu sync.RWMutex
 
@@ -122,7 +118,7 @@ func FreeGlobalAOID(id mt.AOID, srv string) {
 	globalAOIDsMu.Lock()
 	defer globalAOIDsMu.Unlock()
 
-	globalAOIDs[id] = globalAOID{used: false}
+	delete(globalAOIDs, id)
 }
 
 ///
@@ -180,9 +176,9 @@ func FreeServerAOID(srv string, id mt.AOID) {
 	serverAOIDsMu.Lock()
 	defer serverAOIDsMu.Unlock()
 
-	serverAOIDs[srv][id] = false
+	delete(serverAOIDs[srv], id)
 	if serverAOIDs[srv].empty() {
-		globalAOIDs[id] = globalAOID{used: false}
+		delete(globalAOIDs, id)
 	}
 }
 
@@ -244,8 +240,8 @@ func (cc *ClientConn) FreeAOID(id mt.AOID) {
 	defer clientAOIDsMu.Unlock()
 
 	name := cc.Name()
-	clientAOIDs[name][id] = false
+	delete(clientAOIDs[name], id)
 	if clientAOIDs[name].empty() {
-		globalAOIDs[id] = globalAOID{used: false}
+		delete(globalAOIDs, id)
 	}
 }
