@@ -31,6 +31,7 @@ type ClientConn struct {
 	cstateMu sync.RWMutex
 	name     string
 	initCh   chan struct{}
+	aoReady  sync.Once
 	hopMu    sync.Mutex
 
 	auth struct {

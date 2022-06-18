@@ -60,9 +60,15 @@ func (sc *ServerConn) state() ClientState {
 
 func (sc *ServerConn) setState(state ClientState) {
 	sc.cstateMu.Lock()
-	defer sc.cstateMu.Unlock()
 
+	oldState := sc.cstate
 	sc.cstate = state
+
+	sc.cstateMu.Unlock()
+
+	if oldState != state {
+		handleServerStateChange(sc, oldState, state)
+	}
 }
 
 // Init returns a channel that is closed

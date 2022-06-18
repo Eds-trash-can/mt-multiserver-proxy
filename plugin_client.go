@@ -18,10 +18,12 @@ type Leave struct {
 }
 
 type ClientHandler struct {
-	Join        func(cc *ClientConn) (destination string)
-	StateChange func(cc *ClientConn, oldState, state ClientState)
-	Leave       func(cc *ClientConn, l *Leave)
-	Hop         func(cc *ClientConn, source, destination string)
+	Join           func(cc *ClientConn) (destination string)
+	AOReady        func(cc *ClientConn)
+	StateChange    func(cc *ClientConn, oldState, state ClientState)
+	SrvStateChange func(sc *ServerConn, oldState, state ClientState)
+	Leave          func(cc *ClientConn, l *Leave)
+	Hop            func(cc *ClientConn, source, destination string)
 }
 
 var clientHandlers []*ClientHandler
@@ -41,6 +43,28 @@ func handleClientStateChange(cc *ClientConn, oldState, state ClientState) {
 	for _, handler := range clientHandlers {
 		if handler.StateChange != nil {
 			handler.StateChange(cc, oldState, state)
+		}
+	}
+}
+
+func handleServerStateChange(sc *ServerConn, oldState, state ClientState) {
+	clientHandlersMu.RLock()
+	defer clientHandlersMu.RUnlock()
+
+	for _, handler := range clientHandlers {
+		if handler.SrvStateChange != nil {
+			handler.SrvStateChange(sc, oldState, state)
+		}
+	}
+}
+
+func handleAOReady(cc *ClientConn) {
+	clientHandlersMu.RLock()
+	defer clientHandlersMu.RUnlock()
+
+	for _, handler := range clientHandlers {
+		if handler.AOReady != nil {
+			handler.AOReady(cc)
 		}
 	}
 }

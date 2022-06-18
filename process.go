@@ -718,6 +718,10 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			if handleAOAdd(sc, ao.ID, &ao) {
 				continue
 			}
+
+			clt.aoReady.Do(func() {
+				handleAOReady(clt)
+			})
 		}
 
 		clt.SendCmd(resp)
