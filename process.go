@@ -674,7 +674,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			if handleAORm(sc, ao) {
 				continue
 			}
-		
+
 			delete(sc.aos, ao)
 			resp.Remove = append(resp.Remove, ao)
 		}

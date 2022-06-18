@@ -112,7 +112,7 @@ func runFunc() {
 
 			var srv, s Server
 			var found bool
-			
+
 			srvName := handleClientJoin(cc)
 			if srvName != "" {
 				s, found = Conf().Servers[srvName]
@@ -120,11 +120,10 @@ func runFunc() {
 
 			if found {
 				srv = s
-			} else { 
+			} else {
 				srvName, srv = conf.DefaultServerInfo()
 			}
 
-			
 			lastSrv, err := authIface.LastSrv(cc.Name())
 			if err == nil && !Conf().ForceDefaultSrv && lastSrv != srvName {
 				for name, s := range conf.Servers {

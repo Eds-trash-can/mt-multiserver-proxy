@@ -14,10 +14,10 @@ func (cc *ClientConn) Kick(reason string) {
 			Reason: mt.Custom,
 			Custom: reason,
 		}
-	
+
 		ack, _ := cc.SendCmd(kick)
 
-		handleClientLeave(cc ,&Leave{
+		handleClientLeave(cc, &Leave{
 			Type: Kick,
 			Kick: kick,
 		})

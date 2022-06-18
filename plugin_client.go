@@ -12,19 +12,19 @@ const (
 	Kick
 )
 
-type Leave struct{
+type Leave struct {
 	Type LeaveType
 	Kick *mt.ToCltKick
 }
 
-type ClientHandler struct{
+type ClientHandler struct {
 	Join        func(cc *ClientConn) (destination string)
 	StateChange func(cc *ClientConn, oldState, state ClientState)
 	Leave       func(cc *ClientConn, l *Leave)
 	Hop         func(cc *ClientConn, source, destination string)
 }
 
-var clientHandlers   []*ClientHandler
+var clientHandlers []*ClientHandler
 var clientHandlersMu sync.RWMutex
 
 func RegisterClientHandler(h *ClientHandler) {
@@ -70,7 +70,7 @@ func handleClientLeave(cc *ClientConn, l *Leave) {
 		if handler.Leave != nil {
 			handler.Leave(cc, l)
 		}
-	}	
+	}
 }
 
 func handleClientHop(cc *ClientConn, source, leave string) {
@@ -81,5 +81,5 @@ func handleClientHop(cc *ClientConn, source, leave string) {
 		if handler.Hop != nil {
 			handler.Hop(cc, source, leave)
 		}
-	}		
+	}
 }
