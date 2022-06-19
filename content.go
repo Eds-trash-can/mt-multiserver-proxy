@@ -24,61 +24,38 @@ var b64 = base64.StdEncoding
 //go:embed textures/*
 var textures embed.FS
 
-type mediaFile struct {
+type MediaFile struct {
 	name       string
 	base64SHA1 string
 	data       []byte
 }
 
-type contentConn struct {
-	mt.Peer
+type contentConn interface {
+	Log(string, ...interface{})
 
-	logger *log.Logger
+	Done() <-chan struct{}
 
-	cstate         ClientState
-	cstateMu       sync.RWMutex
-	name, userName string
-	doneCh         chan struct{}
+	GetMediaPool() string
+	GetName() string
 
-	auth struct {
-		method              mt.AuthMethods
-		salt, srpA, a, srpK []byte
-	}
+	getItemDefs() []mt.ItemDef
+	getAliases()  []struct{ Alias, Orig string }
 
-	mediaPool string
+	getNodeDefs() []mt.NodeDef
 
-	itemDefs []mt.ItemDef
-	aliases  []struct{ Alias, Orig string }
-
-	nodeDefs []mt.NodeDef
-
-	media   []mediaFile
-	remotes []string
+	addMedia(...MediaFile)
+	getMedia() []MediaFile
+	getRemotes() []string
 }
 
-func (cc *contentConn) state() ClientState {
-	cc.cstateMu.RLock()
-	defer cc.cstateMu.RUnlock()
 
-	return cc.cstate
-}
-
-func (cc *contentConn) setState(state ClientState) {
-	cc.cstateMu.Lock()
-	defer cc.cstateMu.Unlock()
-
-	cc.cstate = state
-}
-
-func (cc *contentConn) done() <-chan struct{} { return cc.doneCh }
-
-func (cc *contentConn) addDefaultTextures() error {
+func addDefaultTextures(cc contentConn) error {
 	dir, err := textures.ReadDir("textures")
 	if err != nil {
 		return err
 	}
 
-	cc.media = make([]mediaFile, 0, len(dir))
+	files := make([]MediaFile, 0, len(dir))
 	for _, f := range dir {
 		data, err := textures.ReadFile("textures/" + f.Name())
 		if err != nil {
@@ -86,21 +63,22 @@ func (cc *contentConn) addDefaultTextures() error {
 		}
 
 		sum := sha1.Sum(data)
-		cc.media = append(cc.media, mediaFile{
+
+		files = append(files, MediaFile{
 			name:       f.Name(),
 			base64SHA1: b64.EncodeToString(sum[:]),
 			data:       data,
 		})
 	}
 
+	cc.addMedia(files...)
+
 	return nil
 }
 
-func (cc *contentConn) log(dir string, v ...interface{}) {
-	cc.logger.Println(append([]interface{}{dir}, v...)...)
-}
 
-func handleContent(cc *contentConn) {
+
+func (cc *contentConnUDP) handleContent() {
 	defer close(cc.doneCh)
 
 	go func() {
@@ -111,7 +89,7 @@ func handleContent(cc *contentConn) {
 			select {
 			case <-init:
 			case <-time.After(10 * time.Second):
-				cc.log("->", "timeout")
+				cc.Log("->", "timeout")
 				cc.Close()
 			}
 		}(init)
@@ -132,21 +110,21 @@ func handleContent(cc *contentConn) {
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				if errors.Is(cc.WhyClosed(), rudp.ErrTimedOut) {
-					cc.log("<->", "timeout")
+					cc.Log("<->", "timeout")
 				}
 
 				cc.setState(CsInit)
 				break
 			}
 
-			cc.log("<-", err)
+			cc.Log("<-", err)
 			continue
 		}
 
 		switch cmd := pkt.Cmd.(type) {
 		case *mt.ToCltHello:
 			if cc.auth.method != 0 {
-				cc.log("<-", "unexpected authentication")
+				cc.Log("<-", "unexpected authentication")
 				cc.Close()
 				break
 			}
@@ -159,7 +137,7 @@ func handleContent(cc *contentConn) {
 			}
 
 			if cmd.SerializeVer != serializeVer {
-				cc.log("<-", "invalid serializeVer")
+				cc.Log("<-", "invalid serializeVer")
 				break
 			}
 
@@ -167,7 +145,7 @@ func handleContent(cc *contentConn) {
 			case mt.SRP:
 				cc.auth.srpA, cc.auth.a, err = srp.InitiateHandshake()
 				if err != nil {
-					cc.log("->", err)
+					cc.Log("->", err)
 					break
 				}
 
@@ -180,7 +158,7 @@ func handleContent(cc *contentConn) {
 
 				salt, verifier, err := srp.NewClient([]byte(id), []byte{})
 				if err != nil {
-					cc.log("->", err)
+					cc.Log("->", err)
 					break
 				}
 
@@ -190,12 +168,12 @@ func handleContent(cc *contentConn) {
 					EmptyPasswd: true,
 				})
 			default:
-				cc.log("<->", "invalid auth method")
+				cc.Log("<->", "invalid auth method")
 				cc.Close()
 			}
 		case *mt.ToCltSRPBytesSaltB:
 			if cc.auth.method != mt.SRP {
-				cc.log("<-", "multiple authentication attempts")
+				cc.Log("<-", "multiple authentication attempts")
 				break
 			}
 
@@ -203,13 +181,13 @@ func handleContent(cc *contentConn) {
 
 			cc.auth.srpK, err = srp.CompleteHandshake(cc.auth.srpA, cc.auth.a, []byte(id), []byte{}, cmd.Salt, cmd.B)
 			if err != nil {
-				cc.log("->", err)
+				cc.Log("->", err)
 				break
 			}
 
 			M := srp.ClientProof([]byte(cc.userName), cmd.Salt, cc.auth.srpA, cmd.B, cc.auth.srpK)
 			if M == nil {
-				cc.log("<-", "SRP safety check fail")
+				cc.Log("<-", "SRP safety check fail")
 				break
 			}
 
@@ -217,7 +195,7 @@ func handleContent(cc *contentConn) {
 				M: M,
 			})
 		case *mt.ToCltKick:
-			cc.log("<-", "deny access", cmd)
+			cc.Log("<-", "deny access", cmd)
 		case *mt.ToCltAcceptAuth:
 			cc.auth.method = 0
 			cc.SendCmd(&mt.ToSrvInit2{})
@@ -235,7 +213,7 @@ func handleContent(cc *contentConn) {
 
 			for _, f := range cmd.Files {
 
-				if cc.fromCache(f.Name, f.Base64SHA1) {
+				if FromCache(cc, f.Name, f.Base64SHA1) {
 					continue
 				}
 
@@ -248,7 +226,7 @@ func handleContent(cc *contentConn) {
 					}
 				}
 
-				cc.media = append(cc.media, mediaFile{
+				cc.addMedia(MediaFile{
 					name:       f.Name,
 					base64SHA1: f.Base64SHA1,
 				})
@@ -271,7 +249,7 @@ func handleContent(cc *contentConn) {
 			}
 
 			if cmd.I == cmd.N-1 {
-				cc.updateCache()
+				updateCache(cc.getMedia())
 				cc.Close()
 			}
 		}
@@ -337,7 +315,7 @@ type param0SrvMap map[mt.Content]struct {
 	param0 mt.Content
 }
 
-func muxItemDefs(conns []*contentConn) ([]mt.ItemDef, []struct{ Alias, Orig string }) {
+func muxItemDefs(conns []contentConn) ([]mt.ItemDef, []struct{ Alias, Orig string }) {
 	var itemDefs []mt.ItemDef
 	var aliases []struct{ Alias, Orig string }
 
@@ -353,27 +331,29 @@ func muxItemDefs(conns []*contentConn) ([]mt.ItemDef, []struct{ Alias, Orig stri
 	})
 
 	for _, cc := range conns {
-		<-cc.done()
-		for _, def := range cc.itemDefs {
+		<-cc.Done()
+		pool := cc.GetMediaPool()
+		
+		for _, def := range cc.getItemDefs() {
 			if def.Name == "" {
 				def.Name = "hand"
 			}
 
-			prepend(cc.mediaPool, &def.Name)
-			prependTexture(cc.mediaPool, &def.InvImg)
-			prependTexture(cc.mediaPool, &def.WieldImg)
-			prepend(cc.mediaPool, &def.PlacePredict)
-			prepend(cc.mediaPool, &def.PlaceSnd.Name)
-			prepend(cc.mediaPool, &def.PlaceFailSnd.Name)
-			prependTexture(cc.mediaPool, &def.Palette)
-			prependTexture(cc.mediaPool, &def.InvOverlay)
-			prependTexture(cc.mediaPool, &def.WieldOverlay)
+			prepend(pool, &def.Name)
+			prependTexture(pool, &def.InvImg)
+			prependTexture(pool, &def.WieldImg)
+			prepend(pool, &def.PlacePredict)
+			prepend(pool, &def.PlaceSnd.Name)
+			prepend(pool, &def.PlaceFailSnd.Name)
+			prependTexture(pool, &def.Palette)
+			prependTexture(pool, &def.InvOverlay)
+			prependTexture(pool, &def.WieldOverlay)
 			itemDefs = append(itemDefs, def)
 		}
 
-		for _, alias := range cc.aliases {
-			prepend(cc.mediaPool, &alias.Alias)
-			prepend(cc.mediaPool, &alias.Orig)
+		for _, alias := range cc.getAliases() {
+			prepend(pool, &alias.Alias)
+			prepend(pool, &alias.Orig)
 
 			aliases = append(aliases, struct{ Alias, Orig string }{
 				Alias: alias.Alias,
@@ -385,7 +365,7 @@ func muxItemDefs(conns []*contentConn) ([]mt.ItemDef, []struct{ Alias, Orig stri
 	return itemDefs, aliases
 }
 
-func muxNodeDefs(conns []*contentConn) (nodeDefs []mt.NodeDef, p0Map param0Map, p0SrvMap param0SrvMap) {
+func muxNodeDefs(conns []contentConn) (nodeDefs []mt.NodeDef, p0Map param0Map, p0SrvMap param0SrvMap) {
 	var param0 mt.Content
 
 	p0Map = make(param0Map)
@@ -411,46 +391,49 @@ func muxNodeDefs(conns []*contentConn) (nodeDefs []mt.NodeDef, p0Map param0Map, 
 	}
 
 	for _, cc := range conns {
-		<-cc.done()
-		for _, def := range cc.nodeDefs {
-			if p0Map[cc.name] == nil {
-				p0Map[cc.name] = map[mt.Content]mt.Content{
+		name := cc.GetName()
+		pool := cc.GetMediaPool()
+	
+		<-cc.Done()
+		for _, def := range cc.getNodeDefs() {
+			if p0Map[name] == nil {
+				p0Map[name] = map[mt.Content]mt.Content{
 					mt.Unknown: mt.Unknown,
 					mt.Air:     mt.Air,
 					mt.Ignore:  mt.Ignore,
 				}
 			}
 
-			p0Map[cc.name][def.Param0] = param0
+			p0Map[name][def.Param0] = param0
 			p0SrvMap[param0] = struct {
 				name   string
 				param0 mt.Content
 			}{
-				name:   cc.name,
+				name:   name,
 				param0: def.Param0,
 			}
 
 			def.Param0 = param0
 			oldName := def.Name // copy string to use later
-			prepend(cc.mediaPool, &def.Name)
-			prepend(cc.mediaPool, &def.Mesh)
+			prepend(pool, &def.Name)
+			prepend(pool, &def.Mesh)
 			for i := range def.Tiles {
-				prependTexture(cc.mediaPool, &def.Tiles[i].Texture)
+				prependTexture(pool, &def.Tiles[i].Texture)
 			}
 			for i := range def.OverlayTiles {
-				prependTexture(cc.mediaPool, &def.OverlayTiles[i].Texture)
+				prependTexture(pool, &def.OverlayTiles[i].Texture)
 			}
 			for i := range def.SpecialTiles {
-				prependTexture(cc.mediaPool, &def.SpecialTiles[i].Texture)
+				prependTexture(pool, &def.SpecialTiles[i].Texture)
 			}
-			prependTexture(cc.mediaPool, &def.Palette)
+			prependTexture(pool, &def.Palette)
 			for k, v := range def.ConnectTo {
-				def.ConnectTo[k] = p0Map[cc.name][v]
+				def.ConnectTo[k] = p0Map[name][v]
 			}
-			prepend(cc.mediaPool, &def.FootstepSnd.Name)
-			prepend(cc.mediaPool, &def.DiggingSnd.Name)
-			prepend(cc.mediaPool, &def.DugSnd.Name)
-			prepend(cc.mediaPool, &def.DigPredict)
+			prepend(pool, &def.FootstepSnd.Name)
+			prepend(pool, &def.DiggingSnd.Name)
+			prepend(pool, &def.DugSnd.Name)
+			prepend(pool, &def.DigPredict)
 			nodeDefs = append(nodeDefs, def)
 
 			param0++
@@ -466,13 +449,13 @@ func muxNodeDefs(conns []*contentConn) (nodeDefs []mt.NodeDef, p0Map param0Map, 
 	return
 }
 
-func muxMedia(conns []*contentConn) []mediaFile {
-	var media []mediaFile
+func muxMedia(conns []contentConn) []MediaFile {
+	var media []MediaFile
 
 	for _, cc := range conns {
-		<-cc.done()
-		for _, f := range cc.media {
-			prepend(cc.mediaPool, &f.name)
+		<-cc.Done()
+		for _, f := range cc.getMedia() {
+			prepend(cc.GetMediaPool(), &f.name)
 			media = append(media, f)
 		}
 	}
@@ -480,12 +463,12 @@ func muxMedia(conns []*contentConn) []mediaFile {
 	return media
 }
 
-func muxRemotes(conns []*contentConn) []string {
+func muxRemotes(conns []contentConn) []string {
 	remotes := make(map[string]struct{})
 
 	for _, cc := range conns {
-		<-cc.done()
-		for _, v := range cc.remotes {
+		<-cc.Done()
+		for _, v := range cc.getRemotes() {
 			remotes[v] = struct{}{}
 		}
 	}
@@ -498,34 +481,18 @@ func muxRemotes(conns []*contentConn) []string {
 	return urls
 }
 
-func muxContent(userName string) (itemDefs []mt.ItemDef, aliases []struct{ Alias, Orig string }, nodeDefs []mt.NodeDef, p0Map param0Map, p0SrvMap param0SrvMap, media []mediaFile, remotes []string, err error) {
-	var conns []*contentConn
+func muxContent(userName string) (itemDefs []mt.ItemDef, aliases []struct{ Alias, Orig string }, nodeDefs []mt.NodeDef, p0Map param0Map, p0SrvMap param0SrvMap, media []MediaFile, remotes []string, err error) {
+	var conns []contentConn
 
 PoolLoop:
 	for _, pool := range PoolServers() {
-		var addr *net.UDPAddr
-
-		for name, srv := range pool {
-			addr, err = net.ResolveUDPAddr("udp", srv.Addr)
-			if err != nil {
+		for _, srv := range pool {
+			if conn, err := srv.contentConn(); err != nil {
 				continue
+			} else {
+				conns = append(conns, conn)
+				continue PoolLoop
 			}
-
-			var conn *net.UDPConn
-			conn, err = net.DialUDP("udp", nil, addr)
-			if err != nil {
-				continue
-			}
-
-			var cc *contentConn
-			cc, err = connectContent(conn, name, userName, srv.MediaPool)
-			if err != nil {
-				continue
-			}
-			defer cc.Close()
-
-			conns = append(conns, cc)
-			continue PoolLoop
 		}
 
 		// There's a pool with no reachable servers.
@@ -540,11 +507,13 @@ PoolLoop:
 	return
 }
 
-func (sc *ServerConn) globalParam0(p0 *mt.Content) {
+func globalParam0(sc ServerConn, p0 *mt.Content) {
 	clt := sc.client()
+	name := sc.GetName()
+	
 	if clt != nil && clt.p0Map != nil {
-		if clt.p0Map[sc.name] != nil {
-			*p0 = clt.p0Map[sc.name][*p0]
+		if clt.p0Map[name] != nil {
+			*p0 = clt.p0Map[name][*p0]
 		}
 	}
 }
@@ -607,40 +576,40 @@ func prependTexture(prep string, t *mt.Texture) {
 	*t = mt.Texture(s)
 }
 
-func (sc *ServerConn) prependInv(inv mt.Inv) {
+func prependInv(mediaPool string, inv mt.Inv) {
 	for k, l := range inv {
 		for i := range l.Stacks {
-			prepend(sc.mediaPool, &inv[k].InvList.Stacks[i].Name)
+			prepend(mediaPool, &inv[k].InvList.Stacks[i].Name)
 		}
 	}
 }
 
-func (sc *ServerConn) prependHUD(t mt.HUDType, cmdIface mt.ToCltCmd) {
+func prependHUD(mediaPool string, t mt.HUDType, cmdIface mt.ToCltCmd) {
 	pa := func(cmd *mt.ToCltAddHUD) {
 		switch t {
 		case mt.StatbarHUD:
-			prepend(sc.mediaPool, &cmd.Text2)
+			prepend(mediaPool, &cmd.Text2)
 			fallthrough
 		case mt.ImgHUD:
 			fallthrough
 		case mt.ImgWaypointHUD:
 			fallthrough
 		case mt.ImgWaypointHUD + 1:
-			prepend(sc.mediaPool, &cmd.Text)
+			prepend(mediaPool, &cmd.Text)
 		}
 	}
 
 	pc := func(cmd *mt.ToCltChangeHUD) {
 		switch t {
 		case mt.StatbarHUD:
-			prepend(sc.mediaPool, &cmd.Text2)
+			prepend(mediaPool, &cmd.Text2)
 			fallthrough
 		case mt.ImgHUD:
 			fallthrough
 		case mt.ImgWaypointHUD:
 			fallthrough
 		case mt.ImgWaypointHUD + 1:
-			prepend(sc.mediaPool, &cmd.Text)
+			prepend(mediaPool, &cmd.Text)
 		}
 	}
 

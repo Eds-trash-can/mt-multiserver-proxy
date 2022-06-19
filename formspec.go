@@ -7,13 +7,13 @@ import (
 
 var textureName = regexp.MustCompile("[a-zA-Z0-9-_.]*\\.[a-zA-Z-_.]+")
 
-func (sc *ServerConn) prependFormspec(fs *string) {
+func prependFormspec(mediaPool string, fs *string) {
 	subs := disallowedChars.Split(*fs, -1)
 	seps := disallowedChars.FindAllString(*fs, -1)
 
 	for i, sub := range subs {
 		if textureName.MatchString(sub) && !strings.Contains(sub, " ") {
-			prepend(sc.mediaPool, &subs[i])
+			prepend(mediaPool, &subs[i])
 		}
 	}
 

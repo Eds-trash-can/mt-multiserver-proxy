@@ -2,7 +2,7 @@ package proxy
 
 import "github.com/anon55555/mt"
 
-func (sc *ServerConn) swapAOID(ao *mt.AOID) {
+func srvSwapAOID(sc ServerConn, ao *mt.AOID) {
 	if sc.client() != nil {
 		if *ao == sc.client().playerCAO {
 			*ao = sc.client().currentCAO
@@ -12,20 +12,22 @@ func (sc *ServerConn) swapAOID(ao *mt.AOID) {
 	}
 }
 
-func (sc *ServerConn) handleAOMsg(aoMsg mt.AOMsg) {
+func srvHandleAOMsg(sc ServerConn, aoMsg mt.AOMsg) {
+	mediaPool := sc.GetMediaPool()
+
 	switch msg := aoMsg.(type) {
 	case *mt.AOCmdAttach:
 		sc.swapAOID(&msg.Attach.ParentID)
 	case *mt.AOCmdProps:
 		for j := range msg.Props.Textures {
-			prependTexture(sc.mediaPool, &msg.Props.Textures[j])
+			prependTexture(mediaPool, &msg.Props.Textures[j])
 		}
-		prepend(sc.mediaPool, &msg.Props.Mesh)
-		prepend(sc.mediaPool, &msg.Props.Itemstring)
-		prependTexture(sc.mediaPool, &msg.Props.DmgTextureMod)
+		prepend(mediaPool, &msg.Props.Mesh)
+		prepend(mediaPool, &msg.Props.Itemstring)
+		prependTexture(mediaPool, &msg.Props.DmgTextureMod)
 	case *mt.AOCmdSpawnInfant:
 		sc.swapAOID(&msg.ID)
 	case *mt.AOCmdTextureMod:
-		prependTexture(sc.mediaPool, &msg.Mod)
+		prependTexture(mediaPool, &msg.Mod)
 	}
 }

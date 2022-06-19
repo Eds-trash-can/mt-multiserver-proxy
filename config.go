@@ -23,12 +23,12 @@ var configMu sync.RWMutex
 
 var loadConfigOnce sync.Once
 
-type Server struct {
-	Addr      string
-	MediaPool string
-	Fallbacks []string
+type Server interface {
+	GetMediaPool() string
+	GetFallbacks() []string
+	contentConn() (contentConn, error)
 
-	dynamic bool
+	isDynamic() bool
 }
 
 // A Config contains information from the configuration file
@@ -43,7 +43,7 @@ type Config struct {
 	NoTelnet        bool
 	TelnetAddr      string
 	BindAddr        string
-	Servers         map[string]Server
+	Servers         map[string]UDPServer
 	ForceDefaultSrv bool
 	FallbackServers []string
 	CSMRF           struct {
@@ -94,17 +94,19 @@ func Conf() Config {
 func PoolServers() map[string]map[string]Server {
 	pools := make(map[string]map[string]Server)
 	for name, srv := range Conf().Servers {
-		if pools[srv.MediaPool] == nil {
-			pools[srv.MediaPool] = make(map[string]Server)
+		pool := srv.GetMediaPool()
+	
+		if pools[pool] == nil {
+			pools[pool] = make(map[string]Server)
 		}
 
-		pools[srv.MediaPool][name] = srv
+		pools[pool][name] = srv
 	}
 
 	return pools
 }
 
-// AddServer dynamically configures a new Server at runtime.
+// AddUDPServer dynamically configures a new udp Server at runtime.
 // Servers added in this way are ephemeral and will be lost
 // when the proxy shuts down.
 // The server must be part of a media pool with at least one
@@ -113,7 +115,7 @@ func PoolServers() map[string]map[string]Server {
 // WARNING: Reloading the config will not overwrite servers
 // added using this function. The server definition from the
 // configuration file will silently be ignored.
-func AddServer(name string, s Server) bool {
+func AddUDPServer(name string, s UDPServer) bool {
 	configMu.Lock()
 	defer configMu.Unlock()
 
@@ -125,7 +127,7 @@ func AddServer(name string, s Server) bool {
 
 	var poolMembers bool
 	for _, srv := range config.Servers {
-		if srv.MediaPool == s.MediaPool {
+		if srv.GetMediaPool() == s.MediaPool {
 			poolMembers = true
 		}
 	}
@@ -150,7 +152,7 @@ func RmServer(name string) bool {
 		return true
 	}
 
-	if !s.dynamic {
+	if !s.isDynamic() {
 		return false
 	}
 
@@ -174,7 +176,7 @@ func (cnf Config) DefaultServerInfo() (string, Server) {
 	}
 
 	// No servers are configured.
-	return "", Server{}
+	return "", UDPServer{}
 }
 
 // DefaultServerName returns the name of the default server.
@@ -203,7 +205,7 @@ func FallbackServers(server string) []string {
 		return nil
 	}
 
-	fallbacks := srv.Fallbacks
+	fallbacks := srv.GetFallbacks()
 
 	// global fallbacks
 	if len(conf.FallbackServers) == 0 {

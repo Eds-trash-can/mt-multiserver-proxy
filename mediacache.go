@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (cc *contentConn) fromCache(filename, base64SHA1 string) bool {
+func FromCache(cc contentConn, filename, base64SHA1 string) bool {
 	os.Mkdir(Path("cache"), 0777)
 
 	// convert to filename safe b64
@@ -23,7 +23,7 @@ func (cc *contentConn) fromCache(filename, base64SHA1 string) bool {
 		return false
 	}
 
-	cc.media = append(cc.media, mediaFile{
+	cc.addMedia(mediaFile{
 		name:       filename,
 		base64SHA1: base64SHA1,
 		data:       data,
@@ -32,10 +32,10 @@ func (cc *contentConn) fromCache(filename, base64SHA1 string) bool {
 	return true
 }
 
-func (cc *contentConn) updateCache() {
+func updateCache(media []MediaFile) {
 	os.Mkdir(Path("cache"), 0777)
 
-	for _, f := range cc.media {
+	for _, f := range media {
 		// convert to filename safe b64
 		base64SHA1Filesafe := strings.Replace(f.base64SHA1, "/", "_", -1)
 		base64SHA1Filesafe = strings.Replace(base64SHA1Filesafe, "+", "-", -1)
@@ -44,7 +44,7 @@ func (cc *contentConn) updateCache() {
 	}
 }
 
-func cacheMedia(f mediaFile) {
+func cacheMedia(f MediaFile) {
 	hash := sha1.Sum(f.data)
 	sum := base64.RawStdEncoding.EncodeToString(hash[:])
 

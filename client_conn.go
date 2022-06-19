@@ -22,7 +22,7 @@ const (
 // A ClientConn is a connection to a minetest client.
 type ClientConn struct {
 	mt.Peer
-	srv *ServerConn
+	srv ServerConn
 	mu  sync.RWMutex
 
 	logger *log.Logger
@@ -51,7 +51,7 @@ type ClientConn struct {
 	nodeDefs []mt.NodeDef
 	p0Map    param0Map
 	p0SrvMap param0SrvMap
-	media    []mediaFile
+	media    []MediaFile
 
 	playerCAO, currentCAO mt.AOID
 
@@ -64,7 +64,7 @@ type ClientConn struct {
 // Name returns the player name of the ClientConn.
 func (cc *ClientConn) Name() string { return cc.name }
 
-func (cc *ClientConn) server() *ServerConn {
+func (cc *ClientConn) server() ServerConn {
 	cc.mu.RLock()
 	defer cc.mu.RUnlock()
 
@@ -76,7 +76,7 @@ func (cc *ClientConn) server() *ServerConn {
 func (cc *ClientConn) ServerName() string {
 	srv := cc.server()
 	if srv != nil {
-		return srv.name
+		return srv.GetName()
 	}
 
 	return ""
@@ -135,10 +135,8 @@ func handleClt(cc *ClientConn) {
 				if cc.server() != nil {
 					cc.server().Close()
 
-					cc.server().mu.Lock()
-					cc.server().clt = nil
-					cc.server().mu.Unlock()
-
+					cc.server().nilClt()
+					
 					cc.mu.Lock()
 					cc.srv = nil
 					cc.mu.Unlock()

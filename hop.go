@@ -25,28 +25,22 @@ func (cc *ClientConn) Hop(serverName string) error {
 		return err
 	}
 
-	var strAddr string
-	for name, srv := range Conf().Servers {
+	var srv Server
+	for name, s := range Conf().Servers {
 		if name == serverName {
-			strAddr = srv.Addr
+			srv = s
 			break
 		}
 	}
-
-	if strAddr == "" {
-		return fmt.Errorf("inexistent server")
-	}
-
+	
 	// This needs to be done before the ServerConn is closed
 	// so the clientConn isn't closed by the packet handler
-	cc.server().mu.Lock()
-	cc.server().clt = nil
-	cc.server().mu.Unlock()
-
+	cc.server().nilClt()
+	
 	cc.server().Close()
 
 	// Reset the client to its initial state
-	for _, inv := range cc.server().detachedInvs {
+	for _, inv := range cc.server().getDetachedInvs() {
 		cc.SendCmd(&mt.ToCltDetachedInv{
 			Name: inv,
 			Keep: false,

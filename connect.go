@@ -8,7 +8,7 @@ import (
 	"github.com/anon55555/mt"
 )
 
-func connect(conn net.Conn, name string, cc *ClientConn) *ServerConn {
+func connect(conn net.Conn, name string, cc *ClientConn) ServerConn {
 	cc.mu.RLock()
 	if cc.srv != nil {
 		cc.Log("<->", "already connected to server")
@@ -25,7 +25,7 @@ func connect(conn net.Conn, name string, cc *ClientConn) *ServerConn {
 	}
 
 	logPrefix := fmt.Sprintf("[server %s] ", name)
-	sc := &ServerConn{
+	sc := &ServerConnUDP{
 		Peer:             mt.Connect(conn),
 		logger:           log.New(logWriter, logPrefix, log.LstdFlags|log.Lmsgprefix),
 		initCh:           make(chan struct{}),
@@ -44,25 +44,6 @@ func connect(conn net.Conn, name string, cc *ClientConn) *ServerConn {
 	cc.srv = sc
 	cc.mu.Unlock()
 
-	go handleSrv(sc)
+	go sc.handle()
 	return sc
-}
-
-func connectContent(conn net.Conn, name, userName, mediaPool string) (*contentConn, error) {
-	logPrefix := fmt.Sprintf("[content %s] ", name)
-	cc := &contentConn{
-		Peer:      mt.Connect(conn),
-		logger:    log.New(logWriter, logPrefix, log.LstdFlags|log.Lmsgprefix),
-		doneCh:    make(chan struct{}),
-		name:      name,
-		userName:  userName,
-		mediaPool: mediaPool,
-	}
-
-	if err := cc.addDefaultTextures(); err != nil {
-		return nil, err
-	}
-
-	go handleContent(cc)
-	return cc, nil
 }
