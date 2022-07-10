@@ -13,11 +13,17 @@ type ChatCmd struct {
 	Usage       string
 	TelnetUsage string
 	Handler     func(*ClientConn, io.Writer, ...string) string
+
+	plugin string
 }
 
 var chatCmds map[string]ChatCmd
 var chatCmdsMu sync.RWMutex
 var chatCmdsOnce sync.Once
+
+func (cc ChatCmd) Plugin() string {
+	return cc.plugin
+}
 
 // ChatCmds returns a map of all ChatCmds indexed by their names.
 func ChatCmds() map[string]ChatCmd {
@@ -42,11 +48,16 @@ func ChatCmdExists(name string) bool {
 
 // RegisterChatCmd adds a new ChatCmd. It returns true on success
 // and false if a command with the same name already exists.
+// should only be called in init() function of plugin
 func RegisterChatCmd(cmd ChatCmd) bool {
 	initChatCmds()
 
 	if ChatCmdExists(cmd.Name) {
 		return false
+	}
+
+	if loadingPlugin != "" {
+		cmd.plugin = loadingPlugin
 	}
 
 	chatCmdsMu.Lock()

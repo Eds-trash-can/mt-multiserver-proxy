@@ -9,6 +9,8 @@ import (
 
 var pluginsOnce sync.Once
 
+var loadingPlugin string
+
 func loadPlugins() {
 	pluginsOnce.Do(openPlugins)
 }
@@ -23,12 +25,15 @@ func openPlugins() {
 	}
 
 	for _, file := range dir {
+		loadingPlugin = file.Name()
 		_, err := plugin.Open(path + "/" + file.Name())
 		if err != nil {
 			log.Print(err)
 			continue
 		}
 	}
+
+	loadingPlugin = ""
 
 	log.Print("load plugins")
 }
