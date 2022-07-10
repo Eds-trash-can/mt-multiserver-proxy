@@ -12,7 +12,7 @@ import (
 )
 
 func (cc *ClientConn) process(pkt mt.Pkt) {
-	srv := cc.server()
+	srv := cc.Server()
 
 	forward := func(pkt mt.Pkt) {
 		if srv == nil {
@@ -424,6 +424,8 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 	case *mt.ToSrvReqMedia:
 		cc.sendMedia(cmd.Filenames)
 		return
+	case *mt.ToSrvInvAction:
+		cc.Log("^>", cmd.Action)
 	case *mt.ToSrvCltReady:
 		cc.major = cmd.Major
 		cc.minor = cmd.Minor
@@ -479,7 +481,7 @@ func (cc *ClientConn) process(pkt mt.Pkt) {
 }
 
 func (sc *ServerConn) process(pkt mt.Pkt) {
-	clt := sc.client()
+	clt := sc.Client()
 	if clt == nil {
 		sc.Log("<-", "no client")
 		return
@@ -490,6 +492,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 	}
 
 	switch cmd := pkt.Cmd.(type) {
+
 	case *mt.ToCltHello:
 		if sc.auth.method != 0 {
 			sc.Log("<-", "unexpected authentication")
@@ -836,7 +839,7 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 			sc.prependInv(cmd.Blk.NodeMetas[k].Inv)
 		}
 
-		if handleBlkData(sc.client(), cmd) {
+		if handleBlkData(sc.Client(), cmd) {
 			return
 		}
 	case *mt.ToCltAddNode:
@@ -869,6 +872,8 @@ func (sc *ServerConn) process(pkt mt.Pkt) {
 	case *mt.ToCltShowFormspec:
 		sc.prependFormspec(&cmd.Formspec)
 	case *mt.ToCltFormspecPrepend:
+		sc.Log("fhgjjgnhjdkdgnhjkdg", "prepend", cmd.Prepend)
+
 		sc.prependFormspec(&cmd.Prepend)
 	case *mt.ToCltInvFormspec:
 		sc.prependFormspec(&cmd.Formspec)

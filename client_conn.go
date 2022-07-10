@@ -64,7 +64,7 @@ type ClientConn struct {
 // Name returns the player name of the ClientConn.
 func (cc *ClientConn) Name() string { return cc.name }
 
-func (cc *ClientConn) server() *ServerConn {
+func (cc *ClientConn) Server() *ServerConn {
 	cc.mu.RLock()
 	defer cc.mu.RUnlock()
 
@@ -74,7 +74,7 @@ func (cc *ClientConn) server() *ServerConn {
 // ServerName returns the name of the current upstream server
 // of the ClientConn. It is empty if there is no upstream connection.
 func (cc *ClientConn) ServerName() string {
-	srv := cc.server()
+	srv := cc.Server()
 	if srv != nil {
 		return srv.name
 	}
@@ -132,12 +132,12 @@ func handleClt(cc *ClientConn) {
 					playersMu.Unlock()
 				}
 
-				if cc.server() != nil {
-					cc.server().Close()
+				if cc.Server() != nil {
+					cc.Server().Close()
 
-					cc.server().mu.Lock()
-					cc.server().clt = nil
-					cc.server().mu.Unlock()
+					cc.Server().mu.Lock()
+					cc.Server().clt = nil
+					cc.Server().mu.Unlock()
 
 					cc.mu.Lock()
 					cc.srv = nil

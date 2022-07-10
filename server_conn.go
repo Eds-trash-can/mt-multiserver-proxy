@@ -44,7 +44,7 @@ type ServerConn struct {
 	playerList map[string]struct{}
 }
 
-func (sc *ServerConn) client() *ClientConn {
+func (sc *ServerConn) Client() *ClientConn {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
@@ -95,12 +95,12 @@ func handleSrv(sc *ServerConn) {
 			}
 		}(init)
 
-		for sc.state() == CsCreated && sc.client() != nil {
+		for sc.state() == CsCreated && sc.Client() != nil {
 			sc.SendCmd(&mt.ToSrvInit{
 				SerializeVer: serializeVer,
 				MinProtoVer:  protoVer,
 				MaxProtoVer:  protoVer,
-				PlayerName:   sc.client().Name(),
+				PlayerName:   sc.Client().Name(),
 			})
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -116,20 +116,20 @@ func handleSrv(sc *ServerConn) {
 					sc.Log("<->", "disconnect")
 				}
 
-				if sc.client() != nil {
-					ack, _ := sc.client().SendCmd(&mt.ToCltKick{
+				if sc.Client() != nil {
+					ack, _ := sc.Client().SendCmd(&mt.ToCltKick{
 						Reason: mt.Custom,
 						Custom: "Server connection closed unexpectedly.",
 					})
 
 					select {
-					case <-sc.client().Closed():
+					case <-sc.Client().Closed():
 					case <-ack:
-						sc.client().Close()
+						sc.Client().Close()
 
-						sc.client().mu.Lock()
-						sc.client().srv = nil
-						sc.client().mu.Unlock()
+						sc.Client().mu.Lock()
+						sc.Client().srv = nil
+						sc.Client().mu.Unlock()
 
 						sc.mu.Lock()
 						sc.clt = nil

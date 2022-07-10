@@ -3,11 +3,11 @@ package proxy
 import "github.com/anon55555/mt"
 
 func (sc *ServerConn) swapAOID(ao *mt.AOID) {
-	if sc.client() != nil {
-		if *ao == sc.client().playerCAO {
-			*ao = sc.client().currentCAO
-		} else if *ao == sc.client().currentCAO {
-			*ao = sc.client().playerCAO
+	if sc.Client() != nil {
+		if *ao == sc.Client().playerCAO {
+			*ao = sc.Client().currentCAO
+		} else if *ao == sc.Client().currentCAO {
+			*ao = sc.Client().playerCAO
 		}
 	}
 }

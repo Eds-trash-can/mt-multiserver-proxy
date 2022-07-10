@@ -19,7 +19,7 @@ func (cc *ClientConn) Hop(serverName string) error {
 
 	source := cc.ServerName()
 
-	if cc.server() == nil {
+	if cc.Server() == nil {
 		err := fmt.Errorf("no server connection")
 		cc.Log("<->", err)
 		return err
@@ -39,14 +39,14 @@ func (cc *ClientConn) Hop(serverName string) error {
 
 	// This needs to be done before the ServerConn is closed
 	// so the clientConn isn't closed by the packet handler
-	cc.server().mu.Lock()
-	cc.server().clt = nil
-	cc.server().mu.Unlock()
+	cc.Server().mu.Lock()
+	cc.Server().clt = nil
+	cc.Server().mu.Unlock()
 
-	cc.server().Close()
+	cc.Server().Close()
 
 	// Reset the client to its initial state
-	for _, inv := range cc.server().detachedInvs {
+	for _, inv := range cc.Server().detachedInvs {
 		cc.SendCmd(&mt.ToCltDetachedInv{
 			Name: inv,
 			Keep: false,
@@ -54,20 +54,20 @@ func (cc *ClientConn) Hop(serverName string) error {
 	}
 
 	var aoRm []mt.AOID
-	for ao := range cc.server().aos {
+	for ao := range cc.Server().aos {
 		aoRm = append(aoRm, ao)
 	}
 	cc.SendCmd(&mt.ToCltAORmAdd{Remove: aoRm})
 
-	for spawner := range cc.server().particleSpawners {
+	for spawner := range cc.Server().particleSpawners {
 		cc.SendCmd(&mt.ToCltDelParticleSpawner{ID: spawner})
 	}
 
-	for sound := range cc.server().sounds {
+	for sound := range cc.Server().sounds {
 		cc.SendCmd(&mt.ToCltStopSound{ID: sound})
 	}
 
-	for hud := range cc.server().huds {
+	for hud := range cc.Server().huds {
 		cc.SendCmd(&mt.ToCltRmHUD{ID: hud})
 	}
 
@@ -129,7 +129,7 @@ func (cc *ClientConn) Hop(serverName string) error {
 	})
 
 	var players []string
-	for player := range cc.server().playerList {
+	for player := range cc.Server().playerList {
 		players = append(players, player)
 	}
 
@@ -155,7 +155,7 @@ func (cc *ClientConn) Hop(serverName string) error {
 	connect(conn, serverName, cc)
 
 	for ch := range cc.modChs {
-		cc.server().SendCmd(&mt.ToSrvJoinModChan{Channel: ch})
+		cc.Server().SendCmd(&mt.ToSrvJoinModChan{Channel: ch})
 	}
 
 	if !Conf().ForceDefaultSrv {

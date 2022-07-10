@@ -541,7 +541,7 @@ PoolLoop:
 }
 
 func (sc *ServerConn) globalParam0(p0 *mt.Content) {
-	clt := sc.client()
+	clt := sc.Client()
 	if clt != nil && clt.p0Map != nil {
 		if clt.p0Map[sc.name] != nil {
 			*p0 = clt.p0Map[sc.name][*p0]

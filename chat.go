@@ -24,7 +24,7 @@ func (cc *ClientConn) DoChatMsg(msg string) {
 	}
 
 	if !isCmd {
-		cc.server().SendCmd(cmd)
+		cc.Server().SendCmd(cmd)
 	}
 }
 
